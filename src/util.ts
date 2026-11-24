@@ -1,3 +1,5 @@
+import * as path from "path";
+
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -5,6 +7,25 @@ export function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * Map a URL path to a file inside the server root. Returns null for
+ * anything that escapes the root (traversal, absolute weirdness, NULs).
+ */
+export function resolveUrlPath(urlPath: string, root: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    return null;
+  }
+  if (decoded.includes("\0")) return null;
+  if (decoded.split("/").includes("..")) return null;
+
+  const filePath = path.resolve(root, "." + path.posix.normalize("/" + decoded));
+  if (filePath !== root && !filePath.startsWith(root + path.sep)) return null;
+  return filePath;
 }
 
 export const MIME_TYPES: Record<string, string> = {

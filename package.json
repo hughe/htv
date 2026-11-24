@@ -1,6 +1,6 @@
 {
   "name": "htv",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "HTML viewer CLI - serves a local HTML file with its repo assets and live reload",
   "main": "dist/index.js",
   "bin": {
@@ -18,9 +18,13 @@
     "live-reload"
   ],
   "license": "MIT",
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.7.0"
   }
 }

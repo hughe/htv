@@ -21,12 +21,12 @@ Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for r
 - URLs mirror the repo: a page at `docs/manual.html` is served at
   `/docs/manual.html`; `/` redirects to the file you named.
 - Served HTML pages get a small script injected (never written to disk)
-  that pings the server every second. The server compares the file's
-  mtime/size against what it served; on change the client fetches the new
-  HTML and swaps the document in place, preserving scroll position and
-  re-running the page's scripts.
-- If the server sees no ping for 3 seconds — i.e. the browser window was
-  closed — it exits.
+  that opens a websocket back to the server. The server watches each
+  viewed file and pushes a notification on change; the page then fetches
+  the new HTML and swaps the document in place, preserving scroll
+  position and re-running the page's scripts.
+- When every websocket has been gone for 3 seconds — i.e. the browser
+  window was closed — the server exits.
 
 ## Usage
 
@@ -58,9 +58,9 @@ Requires Node.js 18+. Symlinks `htv` into `~/.local/bin` (override with
   the server root.
 - Files outside the git root (or the fallback directory) are never served.
 - Set `HTV_NO_OPEN=1` to skip opening a browser (used by the tests).
-- Live reload watches the file you're viewing; each open page monitors
-  its own file, so navigating to another page in the repo keeps
-  live-reload and auto-exit behavior working.
+- Live reload uses a websocket per open page (like mdv); each page
+  registers the file it is viewing, so navigating to another page in the
+  repo keeps live-reload and auto-exit behavior working.
 
 ## Development
 

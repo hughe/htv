@@ -1,14 +1,16 @@
 /**
  * The script injected into served HTML pages (watch mode only).
  *
- * - Pings the server once a second via a GET request carrying an
- *   X-HTV-Ping header. The server compares the page file's current
- *   mtime/size against what it served and answers {changed: true/false}.
+ * - Opens a websocket back to the server and declares which file the
+ *   page is viewing ("hello"). The server watches that file and sends
+ *   {changed} when it changes on disk.
  * - On change, fetches the new HTML and swaps it in place (replacing
  *   documentElement), preserving the scroll position. Scripts adopted
  *   from a DOMParser document never execute, so they are recreated.
- * - The ping doubles as a heartbeat: if the server sees no ping for
- *   3 seconds it assumes the browser window closed and exits.
+ * - If the socket drops (e.g. server restarted), reconnects and retries,
+ *   re-sending the "hello" after each reconnect.
+ * - When every page has disconnected for 3 seconds the server exits
+ *   (the browser window was closed).
  *
  * Constraints: this runs as an inline <script>, so the source must not
  * contain "</script>", and it is embedded in a TypeScript template
@@ -19,21 +21,6 @@ export const CLIENT_SCRIPT = `
   "use strict";
   if (window.__htvActive) return;
   window.__htvActive = true;
-
-  var PING_MS = 1000;
-
-  function ping() {
-    fetch(location.pathname, {
-      method: "GET",
-      cache: "no-store",
-      headers: { "X-HTV-Ping": "1" }
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d && d.changed) swap();
-      })
-      .catch(function () { /* server unreachable; keep trying */ });
-  }
 
   var swapping = false;
 
@@ -51,7 +38,7 @@ export const CLIENT_SCRIPT = `
         var y = window.scrollY;
         document.replaceChild(doc.documentElement, document.documentElement);
         // Recreate scripts so they execute again (adopted scripts do not).
-        // Our own injected script is skipped; its timer keeps running.
+        // Our own injected script is skipped; its socket stays connected.
         var scripts = document.querySelectorAll("script:not([data-htv])");
         for (var i = 0; i < scripts.length; i++) {
           var s = scripts[i];
@@ -70,8 +57,25 @@ export const CLIENT_SCRIPT = `
       .then(function () { swapping = false; });
   }
 
-  setInterval(ping, PING_MS);
-  ping();
+  function connect() {
+    var proto = location.protocol === "https:" ? "wss:" : "ws:";
+    var ws = new WebSocket(proto + "//" + location.host);
+    ws.onopen = function () {
+      ws.send(JSON.stringify({ type: "hello", path: location.pathname }));
+    };
+    ws.onmessage = function (e) {
+      try {
+        var d = JSON.parse(e.data);
+        if (d && d.type === "changed") swap();
+      } catch (err) { /* ignore */ }
+    };
+    ws.onclose = function () {
+      // Server gone or connection dropped; retry in case it restarts.
+      setTimeout(connect, 1000);
+    };
+  }
+
+  connect();
 })();
 `;
 

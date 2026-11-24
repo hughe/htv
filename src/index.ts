@@ -6,7 +6,8 @@ import * as path from "path";
 import { spawn } from "child_process";
 import { findServerRoot } from "./root";
 import { injectScript } from "./inject";
-import { MIME_TYPES, escapeHtml } from "./util";
+import { setupWatch } from "./watch";
+import { MIME_TYPES, escapeHtml, resolveUrlPath } from "./util";
 
 const USAGE = `htv - html viewer with live reload
 
@@ -92,28 +93,6 @@ function parseArgs(argv: string[]) {
   return { file, port, watch };
 }
 
-/** Timestamp of the last heartbeat ping received from a served page. */
-const PING_TIMEOUT_MS = 3000;
-
-/**
- * Map a URL path to a file inside the server root. Returns null for
- * anything that escapes the root (traversal, absolute weirdness, NULs).
- */
-function resolveUrlPath(urlPath: string, root: string): string | null {
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(urlPath);
-  } catch {
-    return null;
-  }
-  if (decoded.includes("\0")) return null;
-  if (decoded.split("/").includes("..")) return null;
-
-  const filePath = path.resolve(root, "." + path.posix.normalize("/" + decoded));
-  if (filePath !== root && !filePath.startsWith(root + path.sep)) return null;
-  return filePath;
-}
-
 function isHtmlFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   return ext === ".html" || ext === ".htm";
@@ -162,10 +141,6 @@ function main(): void {
     "/" + path.relative(root, absFile).split(path.sep).join("/");
 
   // ── state ──────────────────────────────────────────────────────────────
-  // mtime/size of each served HTML page, so pings can detect changes.
-  const servedPages = new Map<string, { mtimeMs: number; size: number }>();
-  let lastPingAt: number | null = null;
-
   // One-shot (no-watch) auto-shutdown state, mirroring mdv.
   const IDLE_SHUTDOWN_MS = 3000;
   const sockets = new Set<http.IncomingMessage["socket"]>();
@@ -192,35 +167,6 @@ function main(): void {
     }, IDLE_SHUTDOWN_MS);
   }
 
-  /** Answer a heartbeat ping: has the page's file changed on disk? */
-  async function handlePing(
-    res: http.ServerResponse,
-    filePath: string | null
-  ): Promise<void> {
-    lastPingAt = Date.now();
-    let changed = false;
-    if (filePath !== null) {
-      try {
-        const st = await fsp.stat(filePath);
-        const rec = servedPages.get(filePath);
-        if (rec) {
-          changed = st.mtimeMs !== rec.mtimeMs || st.size !== rec.size;
-        } else {
-          servedPages.set(filePath, { mtimeMs: st.mtimeMs, size: st.size });
-        }
-      } catch {
-        // File is gone (perhaps mid atomic-save); tell the client to retry.
-        changed = true;
-      }
-    }
-    res.writeHead(200, {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      Connection: "close",
-    });
-    res.end(JSON.stringify({ changed }));
-  }
-
   server = http.createServer(async (req, res) => {
     const urlPath = (req.url || "/").split("?")[0];
 
@@ -228,12 +174,6 @@ function main(): void {
       if (req.method !== "GET" && req.method !== "HEAD") {
         res.writeHead(405, { "Content-Type": "text/plain", Connection: "close" });
         res.end("Method Not Allowed");
-        return;
-      }
-
-      // Heartbeat ping from the injected script (watch mode only).
-      if (watch && req.headers["x-htv-ping"] !== undefined) {
-        await handlePing(res, resolveUrlPath(urlPath, root));
         return;
       }
 
@@ -279,8 +219,6 @@ function main(): void {
 
       if (isHtmlFile(filePath)) {
         const content = await fsp.readFile(filePath, "utf8");
-        // Record what we are serving so pings can detect later changes.
-        servedPages.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size });
         const body = watch ? injectScript(content) : content;
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
@@ -322,14 +260,10 @@ function main(): void {
   });
 
   if (watch) {
-    // Heartbeat watchdog: once a page has pinged at least once, three
-    // seconds of silence means the browser window is gone.
-    const checkPings = setInterval(() => {
-      if (lastPingAt !== null && Date.now() - lastPingAt > PING_TIMEOUT_MS) {
-        clearInterval(checkPings);
-        shutdown("browser window closed; shutting down");
-      }
-    }, 500);
+    // WebSocket-based live reload: the injected script connects back,
+    // the server watches each viewed file, and the process exits once
+    // every page has been gone for 3 seconds (browser window closed).
+    setupWatch(server, root, (msg) => console.log(`htv: ${msg}`));
   }
 
   server.listen(port, "127.0.0.1", () => {
