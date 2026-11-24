@@ -8,7 +8,7 @@ exits by itself. No leftover processes, no port juggling.
     htv index.html
     htv docs/manual.html 8080
 
-Inspired by [`mdv`](../mdv) (the markdown viewer), but for raw HTML.
+Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for raw HTML.
 
 ## How it works
 
