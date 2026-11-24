@@ -66,4 +66,26 @@ Requires Node.js 18+. Symlinks `htv` into `~/.local/bin` (override with
 
     npm install
     npm run build     # tsc -> dist/
-    npm test          # build + playwright tests (needs `npx playwright install`)
+
+### Running the test suite
+
+    npx playwright install   # one-time: download the Chromium test browser
+    npm test                 # build + run the Playwright tests
+
+The suite covers injection at serve time, git-root asset serving,
+traversal blocking, the no-`.git` fallback warning, the in-place swap
+(scroll preservation and script re-execution), window-close shutdown,
+and one-shot mode. It runs headless Chromium against a throwaway
+server per test; no browser window opens.
+
+### Manual smoke test
+
+Serve the bundled demo page and try the behaviors by hand:
+
+    node dist/index.js test.html
+
+- the **Script runs** counter increments once per swap — edit
+  `test.html` and save, the page updates in place
+- scroll down before editing; the scroll position survives the swap
+- the page references `assets/diagram.svg`, exercising git-root serving
+- close the tab; the server exits after ~3 seconds
