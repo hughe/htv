@@ -157,6 +157,21 @@ test("serves the page with the reload script injected, plus same-dir images", as
   await expect(page).toHaveTitle("✗ 5m - Test");
 });
 
+test("title age uses days for files at least 24 hours old", async ({ page }) => {
+  const dir = makeRepo({
+    "page.html": "<html><head><title>Old page</title></head><body></body></html>",
+  });
+  const file = fspath.join(dir, "page.html");
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  fs.utimesSync(file, twoDaysAgo, twoDaysAgo);
+  const server = await startServer([file]);
+
+  await page.goto(server.url);
+  await expect(page).toHaveTitle("✓ 2d - Old page");
+
+  server.kill();
+});
+
 test("/ redirects to the page's repo-relative path", async ({ page }) => {
   const dir = makeRepo({
     "docs/deep/page.html": "<html><body><h1>deep</h1></body></html>",
