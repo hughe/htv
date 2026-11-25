@@ -4,8 +4,9 @@
  * - Opens a websocket back to the server and declares which file the
  *   page is viewing ("hello"). The server returns its modification time,
  *   watches that file, and sends {changed} when it changes on disk.
- * - Prefixes the page title with websocket status and the time since the
- *   file last changed, e.g. "✓ 5m - Original title".
+ * - Replaces the page title with the first 25 Unicode characters of its
+ *   original title, the time since the file changed, and websocket status,
+ *   e.g. "Original title - 5m ✓".
  * - On change, fetches the new HTML and swaps it in place (replacing
  *   documentElement), preserving the scroll position. Scripts adopted
  *   from a DOMParser document never execute, so they are recreated.
@@ -37,8 +38,9 @@ export const CLIENT_SCRIPT = `
   }
 
   function updateTitle() {
-    document.title = (socketOpen ? "✓" : "✗") + " " + ageText() +
-      " - " + originalTitle;
+    var title = Array.from(originalTitle).slice(0, 25).join("");
+    document.title = title + " - " + ageText() + " " +
+      (socketOpen ? "✓" : "✗");
   }
 
   function swap() {

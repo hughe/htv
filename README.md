@@ -25,10 +25,10 @@ Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for r
   viewed file and pushes a notification on change; the page then fetches
   the new HTML and swaps the document in place, preserving scroll
   position and re-running the page's scripts.
-- The tab title is prefixed with websocket status and the age of the
-  viewed file, for example `✓ 5m - Original title`. Ages use whole
-  minutes (`Nm`), hours (`Nh`), or days (`Nd`). A disconnected websocket
-  is shown with `✗` until it reconnects.
+- The tab title uses `TITLE_TRUNC - T X`: the original title truncated
+  to 25 Unicode characters, the file age in whole minutes (`Nm`), hours
+  (`Nh`), or days (`Nd`), and websocket status. For example,
+  `Original title - 5m ✓`; a disconnected websocket uses `✗`.
 - When every websocket has been gone for 3 seconds — i.e. the browser
   window was closed — the server exits.
 

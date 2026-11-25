@@ -127,7 +127,7 @@ test("serves the page with the reload script injected, plus same-dir images", as
 }) => {
   const dir = makeRepo({
     "page.html":
-      '<!doctype html><html><head><title>Test</title></head><body>' +
+      '<!doctype html><html><head><title>123456789012345678901234567890</title></head><body>' +
       "<h1 id=\"t\">Hello htv</h1><img id=\"img\" src=\"pic.png\">" +
       "</body></html>",
     "pic.png": PNG_1PX,
@@ -139,7 +139,7 @@ test("serves the page with the reload script injected, plus same-dir images", as
 
   await page.goto(server.url); // "/" redirects to /page.html
   await expect(page.locator("#t")).toHaveText("Hello htv");
-  await expect(page).toHaveTitle("✓ 5m - Test");
+  await expect(page).toHaveTitle("1234567890123456789012345 - 5m ✓");
 
   // The reload script was injected at serve time (not on disk).
   expect(await page.locator("script[data-htv]").count()).toBe(1);
@@ -154,7 +154,7 @@ test("serves the page with the reload script injected, plus same-dir images", as
 
   // A closed websocket is shown with a cross while the client retries.
   server.kill();
-  await expect(page).toHaveTitle("✗ 5m - Test");
+  await expect(page).toHaveTitle("1234567890123456789012345 - 5m ✗");
 });
 
 test("title age uses days for files at least 24 hours old", async ({ page }) => {
@@ -167,7 +167,7 @@ test("title age uses days for files at least 24 hours old", async ({ page }) => 
   const server = await startServer([file]);
 
   await page.goto(server.url);
-  await expect(page).toHaveTitle("✓ 2d - Old page");
+  await expect(page).toHaveTitle("Old page - 2d ✓");
 
   server.kill();
 });
@@ -268,7 +268,7 @@ test("watch mode swaps in changes, preserving scroll and re-running scripts", as
 
   await page.goto(server.url);
   await expect(page.locator("#v")).toHaveText("one");
-  await expect(page).toHaveTitle("✓ 2h - one");
+  await expect(page).toHaveTitle("one - 2h ✓");
   expect(await page.evaluate(() => window.__runs)).toBe(1);
 
   await page.evaluate(() => window.scrollTo(0, 1000));
@@ -294,7 +294,7 @@ test("watch mode swaps in changes, preserving scroll and re-running scripts", as
   // The page's inline script ran again in the same window context, and
   // the status prefix now uses the new document title and modification time.
   expect(await page.evaluate(() => window.__runs)).toBe(2);
-  await expect(page).toHaveTitle("✓ 0m - two");
+  await expect(page).toHaveTitle("two - 0m ✓");
 
   server.kill();
 });
