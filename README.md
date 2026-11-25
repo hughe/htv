@@ -25,6 +25,10 @@ Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for r
   viewed file and pushes a notification on change; the page then fetches
   the new HTML and swaps the document in place, preserving scroll
   position and re-running the page's scripts.
+- The tab title is prefixed with websocket status and the age of the
+  viewed file, for example `✓ 5m - Original title`. Ages under an hour
+  use minutes (`Nm`); older files use whole hours (`Nh`). A disconnected
+  websocket is shown with `✗` until it reconnects.
 - When every websocket has been gone for 3 seconds — i.e. the browser
   window was closed — the server exits.
 
@@ -74,9 +78,9 @@ Requires Node.js 18+. Symlinks `htv` into `~/.local/bin` (override with
 
 The suite covers injection at serve time, git-root asset serving,
 traversal blocking, the no-`.git` fallback warning, the in-place swap
-(scroll preservation and script re-execution), window-close shutdown,
-and one-shot mode. It runs headless Chromium against a throwaway
-server per test; no browser window opens.
+(scroll preservation, script re-execution, and title status),
+window-close shutdown, and one-shot mode. It runs headless Chromium
+against a throwaway server per test; no browser window opens.
 
 ### Manual smoke test
 

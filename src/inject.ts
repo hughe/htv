@@ -2,8 +2,10 @@
  * The script injected into served HTML pages (watch mode only).
  *
  * - Opens a websocket back to the server and declares which file the
- *   page is viewing ("hello"). The server watches that file and sends
- *   {changed} when it changes on disk.
+ *   page is viewing ("hello"). The server returns its modification time,
+ *   watches that file, and sends {changed} when it changes on disk.
+ * - Prefixes the page title with websocket status and the time since the
+ *   file last changed, e.g. "✓ 5m - Original title".
  * - On change, fetches the new HTML and swaps it in place (replacing
  *   documentElement), preserving the scroll position. Scripts adopted
  *   from a DOMParser document never execute, so they are recreated.
@@ -23,6 +25,19 @@ export const CLIENT_SCRIPT = `
   window.__htvActive = true;
 
   var swapping = false;
+  var socketOpen = false;
+  var changedAt = Date.now();
+  var originalTitle = document.title;
+
+  function ageText() {
+    var minutes = Math.max(0, Math.floor((Date.now() - changedAt) / 60000));
+    return minutes < 60 ? minutes + "m" : Math.floor(minutes / 60) + "h";
+  }
+
+  function updateTitle() {
+    document.title = (socketOpen ? "✓" : "✗") + " " + ageText() +
+      " - " + originalTitle;
+  }
 
   function swap() {
     if (swapping) return;
@@ -36,6 +51,7 @@ export const CLIENT_SCRIPT = `
         var doc = new DOMParser().parseFromString(html, "text/html");
         var x = window.scrollX;
         var y = window.scrollY;
+        originalTitle = doc.title;
         document.replaceChild(doc.documentElement, document.documentElement);
         // Recreate scripts so they execute again (adopted scripts do not).
         // Our own injected script is skipped; its socket stays connected.
@@ -52,6 +68,7 @@ export const CLIENT_SCRIPT = `
           s.parentNode.replaceChild(n, s);
         }
         window.scrollTo(x, y);
+        updateTitle();
       })
       .catch(function () { /* e.g. file briefly missing during atomic save */ })
       .then(function () { swapping = false; });
@@ -61,20 +78,30 @@ export const CLIENT_SCRIPT = `
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
     var ws = new WebSocket(proto + "//" + location.host);
     ws.onopen = function () {
+      socketOpen = true;
+      updateTitle();
       ws.send(JSON.stringify({ type: "hello", path: location.pathname }));
     };
     ws.onmessage = function (e) {
       try {
         var d = JSON.parse(e.data);
+        if (d && typeof d.mtimeMs === "number") {
+          changedAt = d.mtimeMs;
+          updateTitle();
+        }
         if (d && d.type === "changed") swap();
       } catch (err) { /* ignore */ }
     };
     ws.onclose = function () {
+      socketOpen = false;
+      updateTitle();
       // Server gone or connection dropped; retry in case it restarts.
       setTimeout(connect, 1000);
     };
   }
 
+  updateTitle();
+  setInterval(updateTitle, 1000);
   connect();
 })();
 `;

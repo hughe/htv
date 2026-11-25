@@ -59,14 +59,23 @@ export function setupWatch(
   const watchers = new Map<string, { count: number; close: () => void }>();
   const debounce = new Map<string, NodeJS.Timeout>();
 
+  function fileMtimeMs(file: string): number | null {
+    try {
+      return fs.statSync(file).mtimeMs;
+    } catch {
+      return null;
+    }
+  }
+
   function trigger(file: string): void {
     if (debounce.has(file)) return;
     debounce.set(
       file,
       setTimeout(() => {
         debounce.delete(file);
-        if (!fs.existsSync(file)) return; // mid atomic-save rename; ignore
-        const data = JSON.stringify({ type: "changed" });
+        const mtimeMs = fileMtimeMs(file);
+        if (mtimeMs === null) return; // mid atomic-save rename; ignore
+        const data = JSON.stringify({ type: "changed", mtimeMs });
         let viewers = 0;
         for (const c of clients) {
           if (c.file === file && c.ws.readyState === WebSocket.OPEN) {
@@ -141,11 +150,15 @@ export function setupWatch(
         if (msg.type !== "hello" || typeof msg.path !== "string") return;
         const file = resolveUrlPath(msg.path.split("?")[0], root);
         if (!file) return;
-        if (client.file !== null && client.file !== file) {
-          releaseWatch(client.file);
+        if (client.file !== file) {
+          if (client.file !== null) releaseWatch(client.file);
+          client.file = file;
+          acquireWatch(file);
         }
-        client.file = file;
-        acquireWatch(file);
+        const mtimeMs = fileMtimeMs(file);
+        if (mtimeMs !== null && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ready", mtimeMs }));
+        }
       } catch {
         /* ignore malformed messages */
       }

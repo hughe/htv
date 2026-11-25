@@ -132,10 +132,14 @@ test("serves the page with the reload script injected, plus same-dir images", as
       "</body></html>",
     "pic.png": PNG_1PX,
   });
-  const server = await startServer([fspath.join(dir, "page.html")]);
+  const file = fspath.join(dir, "page.html");
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  fs.utimesSync(file, fiveMinutesAgo, fiveMinutesAgo);
+  const server = await startServer([file]);
 
   await page.goto(server.url); // "/" redirects to /page.html
   await expect(page.locator("#t")).toHaveText("Hello htv");
+  await expect(page).toHaveTitle("✓ 5m - Test");
 
   // The reload script was injected at serve time (not on disk).
   expect(await page.locator("script[data-htv]").count()).toBe(1);
@@ -148,7 +152,9 @@ test("serves the page with the reload script injected, plus same-dir images", as
     await page.locator("#img").evaluate((el) => (el as HTMLImageElement).naturalWidth)
   ).toBe(1);
 
+  // A closed websocket is shown with a cross while the client retries.
   server.kill();
+  await expect(page).toHaveTitle("✗ 5m - Test");
 });
 
 test("/ redirects to the page's repo-relative path", async ({ page }) => {
@@ -241,10 +247,13 @@ test("watch mode swaps in changes, preserving scroll and re-running scripts", as
       "</body></html>",
   });
   const file = fspath.join(dir, "page.html");
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  fs.utimesSync(file, twoHoursAgo, twoHoursAgo);
   const server = await startServer([file]);
 
   await page.goto(server.url);
   await expect(page.locator("#v")).toHaveText("one");
+  await expect(page).toHaveTitle("✓ 2h - one");
   expect(await page.evaluate(() => window.__runs)).toBe(1);
 
   await page.evaluate(() => window.scrollTo(0, 1000));
@@ -267,8 +276,10 @@ test("watch mode swaps in changes, preserving scroll and re-running scripts", as
   // Scroll position survived the swap.
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(900);
 
-  // The page's inline script ran again in the same window context.
+  // The page's inline script ran again in the same window context, and
+  // the status prefix now uses the new document title and modification time.
   expect(await page.evaluate(() => window.__runs)).toBe(2);
+  await expect(page).toHaveTitle("✓ 0m - two");
 
   server.kill();
 });
@@ -282,7 +293,7 @@ test("watch mode shuts down when the browser window closes", async ({ page }) =>
   await page.goto(server.url);
   await expect(page.locator("h1")).toHaveText("bye");
 
-  // Pings stop when the window closes; the server should exit (~3s).
+  // The websocket closes with the window; the server should exit (~3s).
   await page.close();
   await server.exited();
 });
