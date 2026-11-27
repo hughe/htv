@@ -1,6 +1,6 @@
 {
   "name": "htv",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "HTML viewer CLI - serves a local HTML file with its repo assets and live reload",
   "main": "dist/index.js",
   "bin": {
