@@ -12,11 +12,13 @@ import { MIME_TYPES, escapeHtml, resolveUrlPath } from "./util";
 const USAGE = `htv - html viewer with live reload
 
 Usage:
-  htv <html-file> [port]
+  htv [--host <host>] <html-file> [port]
 
 Options:
   <html-file>      Path to an HTML (.html/.htm) file to view
   [port]           Optional port to listen on (default: 0 = random free port)
+  --host <host>    Interface address or hostname to listen on
+                   (default: 127.0.0.1)
   -n, --no-watch   One-shot mode: no live reload; shut down once the page
                    has been served
   -v, --version    Show version
@@ -55,6 +57,7 @@ function fail(message: string): never {
 function parseArgs(argv: string[]) {
   let file: string | undefined;
   let port = 0;
+  let host = "127.0.0.1";
   let watch = true;
 
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +69,20 @@ function parseArgs(argv: string[]) {
     if (arg === "-v" || arg === "--version") {
       console.log(`htv ${getVersion()}`);
       process.exit(0);
+    }
+    if (arg === "--host") {
+      const value = argv[++i];
+      if (value === undefined || value.trim() === "") {
+        fail("--host requires an address or hostname");
+      }
+      host = value.trim().replace(/^\[|\]$/g, "");
+      continue;
+    }
+    if (arg.startsWith("--host=")) {
+      const value = arg.slice("--host=".length).trim();
+      if (value === "") fail("--host requires an address or hostname");
+      host = value.replace(/^\[|\]$/g, "");
+      continue;
     }
     if (arg === "-n" || arg === "--no-watch") {
       watch = false;
@@ -90,7 +107,13 @@ function parseArgs(argv: string[]) {
   if (file === undefined) {
     fail("no html file given");
   }
-  return { file, port, watch };
+  return { file, port, host, watch };
+}
+
+/** Format a listen host for use as the authority in an HTTP URL. */
+function urlHost(host: string): string {
+  const escaped = host.replace(/%/g, "%25");
+  return escaped.includes(":") ? `[${escaped}]` : escaped;
 }
 
 function isHtmlFile(filePath: string): boolean {
@@ -121,7 +144,7 @@ function openUrl(url: string): void {
 }
 
 function main(): void {
-  const { file, port, watch } = parseArgs(process.argv.slice(2));
+  const { file, port, host, watch } = parseArgs(process.argv.slice(2));
 
   const absFile = path.resolve(file);
   if (!fs.existsSync(absFile) || !fs.statSync(absFile).isFile()) {
@@ -266,10 +289,15 @@ function main(): void {
     setupWatch(server, root, (msg) => console.log(`htv: ${msg}`));
   }
 
-  server.listen(port, "127.0.0.1", () => {
+  server.on("error", (err) => {
+    console.error(`error: could not listen on ${host}:${port}: ${err.message}`);
+    process.exit(1);
+  });
+
+  server.listen(port, host, () => {
     const addr = server.address();
     const actualPort = typeof addr === "object" && addr !== null ? addr.port : port;
-    const url = `http://localhost:${actualPort}${pageUrlPath}`;
+    const url = `http://${urlHost(host)}:${actualPort}${encodeURI(pageUrlPath)}`;
     console.log(
       `htv: serving ${path.relative(root, absFile)} at ${url} ` +
         `(root: ${root}; ` +

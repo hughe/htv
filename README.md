@@ -7,6 +7,7 @@ exits by itself. No leftover processes, no port juggling.
 
     htv index.html
     htv docs/manual.html 8080
+    htv --host 0.0.0.0 index.html 8080
 
 Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for raw HTML.
 
@@ -14,6 +15,8 @@ Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for r
 
 - `htv <file.html> [port]` starts an HTTP server on `127.0.0.1`
   (random free port by default) and opens the URL in your default browser.
+  Use `--host <address-or-hostname>` to listen on another interface; the
+  generated and opened URL uses that host.
 - The **server root** is the enclosing git repository — the nearest
   ancestor directory containing `.git/` — so pages can reference any file
   in the repo (images, CSS, other pages). If no `.git/` is found, `htv`
@@ -38,11 +41,13 @@ Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for r
 htv - html viewer with live reload
 
 Usage:
-  htv <html-file> [port]
+  htv [--host <host>] <html-file> [port]
 
 Options:
   <html-file>      Path to an HTML (.html/.htm) file to view
   [port]           Optional port to listen on (default: 0 = random free port)
+  --host <host>    Interface address or hostname to listen on
+                   (default: 127.0.0.1)
   -n, --no-watch   One-shot mode: no live reload; shut down once the page
                    has been served
   -v, --version    Show version
@@ -58,8 +63,9 @@ Requires Node.js 18+. Symlinks `htv` into `~/.local/bin` (override with
 
 ## Notes
 
-- The server binds to `127.0.0.1` only, and rejects any path that escapes
-  the server root.
+- The server binds to `127.0.0.1` by default and rejects any path that
+  escapes the server root. Binding to a non-loopback host (for example,
+  `--host 0.0.0.0`) exposes files under the server root to the network.
 - Files outside the git root (or the fallback directory) are never served.
 - Set `HTV_NO_OPEN=1` to skip opening a browser (used by the tests).
 - Live reload uses a websocket per open page (like mdv); each page

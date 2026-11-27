@@ -51,7 +51,9 @@ function startServer(args: string[]): Promise<ServerHandle> {
     );
 
     proc.stdout!.on("data", (chunk: Buffer) => {
-      const m = chunk.toString().match(/http:\/\/localhost:(\d+)\//);
+      const m = chunk
+        .toString()
+        .match(/http:\/\/(?:\[[^\]]+\]|[^:/\s]+):\d+\//);
       if (m && !settled) {
         settled = true;
         clearTimeout(timeout);
@@ -110,7 +112,7 @@ function httpGetRaw(
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { host: "localhost", port, path: rawPath, method: "GET" },
+      { host: "127.0.0.1", port, path: rawPath, method: "GET" },
       (res) => {
         let body = "";
         res.on("data", (c) => (body += c));
@@ -155,6 +157,24 @@ test("serves the page with the reload script injected, plus same-dir images", as
   // A closed websocket is shown with a cross while the client retries.
   server.kill();
   await expect(page).toHaveTitle("1234567890123456789012345 - 5m ✗");
+});
+
+test("--host binds to and generates a URL for the requested host", async ({
+  page,
+}) => {
+  const dir = makeRepo({
+    "page.html": "<html><body><h1>custom host</h1></body></html>",
+  });
+  const server = await startServer([
+    "--host=localhost",
+    fspath.join(dir, "page.html"),
+  ]);
+
+  expect(server.url).toMatch(/^http:\/\/localhost:\d+\/$/);
+  await page.goto(server.url);
+  await expect(page.locator("h1")).toHaveText("custom host");
+
+  server.kill();
 });
 
 test("title age uses days for files at least 24 hours old", async ({ page }) => {
@@ -339,4 +359,5 @@ test("--help prints usage", () => {
   });
   expect(out).toContain("Usage:");
   expect(out).toContain("--no-watch");
+  expect(out).toContain("--host <host>");
 });
