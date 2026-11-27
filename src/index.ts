@@ -18,7 +18,7 @@ Options:
   <html-file>      Path to an HTML (.html/.htm) file to view
   [port]           Optional port to listen on (default: 0 = random free port)
   --host <host>    Interface address or hostname to listen on
-                   (default: 127.0.0.1)
+                   (default: HTV_HOST or 127.0.0.1)
   -n, --no-watch   One-shot mode: no live reload; shut down once the page
                    has been served
   -v, --version    Show version
@@ -57,7 +57,8 @@ function fail(message: string): never {
 function parseArgs(argv: string[]) {
   let file: string | undefined;
   let port = 0;
-  let host = "127.0.0.1";
+  const envHost = process.env.HTV_HOST?.trim();
+  let host = (envHost || "127.0.0.1").replace(/^\[|\]$/g, "");
   let watch = true;
 
   for (let i = 0; i < argv.length; i++) {

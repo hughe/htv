@@ -8,6 +8,7 @@ exits by itself. No leftover processes, no port juggling.
     htv index.html
     htv docs/manual.html 8080
     htv --host 0.0.0.0 index.html 8080
+    HTV_HOST=192.168.1.20 htv index.html
 
 Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for raw HTML.
 
@@ -15,8 +16,9 @@ Inspired by [mdv](https://github.com/hughe/mdv) (the markdown viewer), but for r
 
 - `htv <file.html> [port]` starts an HTTP server on `127.0.0.1`
   (random free port by default) and opens the URL in your default browser.
-  Use `--host <address-or-hostname>` to listen on another interface; the
-  generated and opened URL uses that host.
+  Use `--host <address-or-hostname>` or the `HTV_HOST` environment
+  variable to listen on another interface; the generated and opened URL
+  uses that host. `--host` takes precedence over `HTV_HOST`.
 - The **server root** is the enclosing git repository — the nearest
   ancestor directory containing `.git/` — so pages can reference any file
   in the repo (images, CSS, other pages). If no `.git/` is found, `htv`
@@ -47,7 +49,7 @@ Options:
   <html-file>      Path to an HTML (.html/.htm) file to view
   [port]           Optional port to listen on (default: 0 = random free port)
   --host <host>    Interface address or hostname to listen on
-                   (default: 127.0.0.1)
+                   (default: HTV_HOST or 127.0.0.1)
   -n, --no-watch   One-shot mode: no live reload; shut down once the page
                    has been served
   -v, --version    Show version
@@ -67,6 +69,8 @@ Requires Node.js 18+. Symlinks `htv` into `~/.local/bin` (override with
   escapes the server root. Binding to a non-loopback host (for example,
   `--host 0.0.0.0`) exposes files under the server root to the network.
 - Files outside the git root (or the fallback directory) are never served.
+- Set `HTV_HOST` to choose the listen interface without passing
+  `--host`; an explicit `--host` value overrides it.
 - Set `HTV_NO_OPEN=1` to skip opening a browser (used by the tests).
 - Live reload uses a websocket per open page (like mdv); each page
   registers the file it is viewing, so navigating to another page in the

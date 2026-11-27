@@ -27,10 +27,13 @@ interface ServerHandle {
  * Spawn the htv CLI and wait until it logs its serving URL.
  * HTV_NO_OPEN keeps it from trying to open a browser.
  */
-function startServer(args: string[]): Promise<ServerHandle> {
+function startServer(
+  args: string[],
+  env: Record<string, string> = {}
+): Promise<ServerHandle> {
   return new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [BIN, ...args], {
-      env: { ...process.env, HTV_NO_OPEN: "1" },
+      env: { ...process.env, HTV_NO_OPEN: "1", HTV_HOST: "", ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -165,14 +168,32 @@ test("--host binds to and generates a URL for the requested host", async ({
   const dir = makeRepo({
     "page.html": "<html><body><h1>custom host</h1></body></html>",
   });
-  const server = await startServer([
-    "--host=localhost",
-    fspath.join(dir, "page.html"),
-  ]);
+  const server = await startServer(
+    ["--host=127.0.0.1", fspath.join(dir, "page.html")],
+    { HTV_HOST: "localhost" }
+  );
+
+  // The command-line flag takes precedence over HTV_HOST.
+  expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+  await page.goto(server.url);
+  await expect(page.locator("h1")).toHaveText("custom host");
+
+  server.kill();
+});
+
+test("HTV_HOST binds to and generates a URL for the requested host", async ({
+  page,
+}) => {
+  const dir = makeRepo({
+    "page.html": "<html><body><h1>environment host</h1></body></html>",
+  });
+  const server = await startServer([fspath.join(dir, "page.html")], {
+    HTV_HOST: "localhost",
+  });
 
   expect(server.url).toMatch(/^http:\/\/localhost:\d+\/$/);
   await page.goto(server.url);
-  await expect(page.locator("h1")).toHaveText("custom host");
+  await expect(page.locator("h1")).toHaveText("environment host");
 
   server.kill();
 });
@@ -360,4 +381,5 @@ test("--help prints usage", () => {
   expect(out).toContain("Usage:");
   expect(out).toContain("--no-watch");
   expect(out).toContain("--host <host>");
+  expect(out).toContain("HTV_HOST");
 });
